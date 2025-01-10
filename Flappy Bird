@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Bird</title>
+
+  <!-- Voeg Firebase SDK toe -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #70c5ce;
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+    }
+
+    canvas {
+      background-color: #ffffff;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      max-width: 90vw;
+      max-height: 90vh;
+    }
+
+    .start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+    }
+
+    .start-screen h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+
+    .start-screen p {
+      font-size: 20px;
+      margin: 10px 0;
+    }
+
+    .start-screen input {
+      font-size: 18px;
+      padding: 10px;
+      margin: 10px;
+      width: 200px;
+    }
+
+    .start-screen button {
+      font-size: 20px;
+      padding: 10px 20px;
+      background-color: #f1c40f;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .start-screen button:hover {
+      background-color: #f39c12;
+    }
+
+    .game-over {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .game-over-overlay {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      width: 300px;
+    }
+
+    .game-over-overlay p {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .game-over-overlay button {
+      font-size: 18px;
+      padding: 10px 20px;
+      margin-top: 10px;
+      background-color: #f1c40f;
+      border: none;
+      cursor: pointer;
+    }
+
+    .game-over-overlay button:hover {
+      background-color: #f39c12;
+    }
+
+    .scoreboard {
+      display: none;
+      background-color: #ffffff;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      text-align: center;
+    }
+
+    .scoreboard h1 {
+      font-size: 36px;
+      margin-bottom: 40px;
+      color: #e67e22;
+    }
+
+    .scoreboard ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .scoreboard li {
+      font-size: 24px;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      background-color: #ecf0f1;
+    }
+
+    .scoreboard li:hover {
+      background-color: #f39c12;
+      color: white;
+    }
+
+    .scoreboard button {
+      font-size: 20px;
+      padding: 10px 20px;
+      background-color: #f1c40f;
+      border: none;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    .scoreboard button:hover {
+      background-color: #f39c12;
+    }
+
+  </style>
+</head>
+<body>
+
+<!-- Start scherm -->
+<div class="start-screen" id="startScreen">
+  <h1>Flappy Bird</h1>
+  <p>Wie de hoogste score heeft wint een gratis tosti!</p>
+  <input type="text" id="firstName" placeholder="Voornaam" required>
+  <input type="text" id="lastName" placeholder="Achternaam" required>
+  <button onclick="startGame()">Start</button>
+</div>
+
+<!-- Game Canvas -->
+<canvas id="gameCanvas" width="480" height="640"></canvas>
+
+<!-- Game Over scherm -->
+<div class="game-over" id="gameOverMessage">
+  <div class="game-over-overlay">
+    <p>Game Over!</p>
+    <p>Je score: <span id="scoreDisplay">0</span></p>
+    <button onclick="restartGame()">Opnieuw</button>
+    <button onclick="viewScoreboard()">Scoreboard</button>
+  </div>
+</div>
+
+<!-- Scoreboard Pagina -->
+<div class="scoreboard" id="scoreboard">
+  <h1>Highscores</h1>
+  <ul id="scoreList"></ul>
+  <button onclick="goBack()">Terug naar het spel</button>
+</div>
+
+<script>
+  // Firebase configuratie
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUHUNfl641LI-19fDvHIvQZcguNZddTmU",
+    authDomain: "flappy-bird-c56d9.firebaseapp.com",
+    databaseURL: "https://flappy-bird-c56d9-default-rtdb.firebaseio.com",
+    projectId: "flappy-bird-c56d9",
+    storageBucket: "flappy-bird-c56d9.appspot.com",
+    messagingSenderId: "277065152042",
+    appId: "1:277065152042:web:b8ebfefb236c59f78df553"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  let playerName = '';
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let bird, pipes, score, gameOver, gameStarted;
+
+  const gameOverMessage = document.getElementById('gameOverMessage');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const scoreboard = document.getElementById('scoreboard');
+  const scoreList = document.getElementById('scoreList');
+  const startScreen = document.getElementById('startScreen');
+
+  // Verberg het game over-scherm bij het laden van de pagina
+  window.onload = function() {
+    gameOverMessage.style.display = 'none';
+  };
+
+  // Start het spel na invoeren van naam
+  function startGame() {
+    const firstName = document.getElementById('firstName').value;
+    const lastName = document.getElementById('lastName').value;
+
+    // Controleer of de naamvelden zijn ingevuld
+    if (!firstName || !lastName) {
+      alert('Vul je voor- en achternaam in om te beginnen!');
+      return;
+    }
+
+    playerName = `${firstName} ${lastName}`;
+    startScreen.style.display = 'none';
+    gameStarted = true;
+    initializeGame();
+  }
+
+  function initializeGame() {
+    bird = { x: 50, y: 150, width: 40, height: 40, gravity: 0.08, lift: -3, velocity: 0 }; // Vergrote vogel
+    pipes = [];
+    score = 0;
+    gameOver = false;
+    gameOverMessage.style.display = 'none';  // Zorg ervoor dat het game over scherm wordt verborgen bij het starten
+    scoreboard.style.display = 'none';
+    gameLoop();
+  }
+
+  function drawBird() {
+    bird.velocity += bird.gravity;
+    bird.y += bird.velocity;
+
+    ctx.fillStyle = 'yellow';
+    ctx.fillRect(bird.x, bird.y, bird.width, bird.height); // Vergrote vogel
+  }
+
+  function drawPipes() {
+    if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 200) {
+      let pipeHeight = Math.floor(Math.random() * (canvas.height - 400)); // Vergroot het gat tussen de pijpen
+      pipes.push({ x: canvas.width, topHeight: pipeHeight, bottomHeight: canvas.height - pipeHeight - 200 });
+    }
+
+    pipes.forEach((pipe, index) => {
+      ctx.fillStyle = 'green';
+      ctx.fillRect(pipe.x, 0, 50, pipe.topHeight);
+      ctx.fillRect(pipe.x, canvas.height - pipe.bottomHeight, 50, pipe.bottomHeight);
+
+      pipe.x -= 2;
+
+      if (pipe.x + 50 <= 0) {
+        pipes.splice(index, 1);
+        score++;
+      }
+
+      if (
+        bird.x + bird.width > pipe.x &&
+        bird.x < pipe.x + 50 &&
+        (bird.y < pipe.topHeight || bird.y + bird.height > canvas.height - pipe.bottomHeight)
+      ) {
+        gameOver = true;
+        showGameOver();
+      }
+    });
+  }
+
+  function drawScore() {
+    ctx.fillStyle = 'black';
+    ctx.font = '20px Arial';
+    ctx.fillText('Score: ' + score, 10, 30);
+  }
+
+  function showGameOver() {
+    gameOverMessage.style.display = 'flex';
+    scoreDisplay.textContent = score;
+    saveScore();
+  }
+
+  function saveScore() {
+    const scoresRef = database.ref('scores');
+    scoresRef.once('value', (snapshot) => {
+      let existing = false;
+
+      snapshot.forEach(child => {
+        const data = child.val();
+        if (data.name === playerName) {
+          if (data.score < score) {
+            child.ref.set({ name: playerName, score });
+          }
+          existing = true;
+        }
+      });
+
+      if (!existing) {
+        scoresRef.push({ name: playerName, score });
+      }
+    });
+  }
+
+  function gameLoop() {
+    if (!gameStarted) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBird();
+    drawPipes();
+    drawScore();
+
+    if (!gameOver) {
+      requestAnimationFrame(gameLoop);
+    }
+  }
+
+  function restartGame() {
+    gameOverMessage.style.display = 'none'; // Verberg het game over-scherm bij het opnieuw starten
+    initializeGame(); // Begin het spel opnieuw zonder te freeze'en
+  }
+
+  function viewScoreboard() {
+    gameOverMessage.style.display = 'none';
+    scoreboard.style.display = 'block';
+
+    const scoresRef = database.ref('scores');
+    scoresRef.orderByChild('score').limitToLast(25).once('value', (snapshot) => {
+      scoreList.innerHTML = '';
+      let scores = [];
+      snapshot.forEach(child => {
+        const scoreData = child.val();
+        scores.push(scoreData);
+      });
+      scores.sort((a, b) => b.score - a.score); // Sorteer de scores van hoog naar laag
+      scores.forEach((scoreData, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${index + 1}. ${scoreData.name}</strong> - Score: ${scoreData.score} | Gespeeld: ${scoreData.plays || 0} keer`;
+        li.style.padding = '10px';
+        li.style.margin = '5px 0';
+        li.style.backgroundColor = '#f4f4f4';
+        li.style.borderRadius = '5px';
+        li.style.fontSize = '18px';
+        scoreList.appendChild(li);
+      });
+    });
+  }
+
+  function goBack() {
+    scoreboard.style.display = 'none';
+    startScreen.style.display = 'flex';
+  }
+
+  // Touch events voor mobiele telefoons
+  canvas.addEventListener('touchstart', () => {
+    if (!gameOver) {
+      bird.velocity = bird.lift;
+    }
+  });
+
+  // Voeg aantal gespeelde keren toe aan de database
+  function saveScore() {
+    const scoresRef = database.ref('scores');
+    scoresRef.once('value', (snapshot) => {
+      let existing = false;
+
+      snapshot.forEach(child => {
+        const data = child.val();
+        if (data.name === playerName) {
+          if (data.score < score) {
+            child.ref.update({ score });
+          }
+          child.ref.update({ plays: (data.plays || 0) + 1 });
+          existing = true;
+        }
+      });
+
+      if (!existing) {
+        scoresRef.push({ name: playerName, score, plays: 1 });
+      }
+    });
+  }
+
+</script>
+
+</body>
+</html>
